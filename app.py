@@ -90,3 +90,32 @@ if st.session_state.matches:
     st.dataframe(df, use_container_width=True, hide_index=True)
 else:
     st.info("No matches logged yet. Log your first match above!")
+
+st.write("---")
+st.subheader("Your Ratings")
+
+if st.session_state.matches:
+    df = pd.DataFrame(st.session_state.matches)
+
+    rating_rows = []
+    for sport_name in df["Sport"].unique():
+        sport_matches = df[df["Sport"] == sport_name]
+        wins = (sport_matches["Result"] == "Win").sum()
+        losses = (sport_matches["Result"] == "Loss").sum()
+        draws = (sport_matches["Result"] == "Draw").sum()
+        total = len(sport_matches)
+        rating = 1000 + (wins * 25) - (losses * 20)
+
+        rating_rows.append({
+            "Sport": sport_name,
+            "Matches Played": total,
+            "Wins": wins,
+            "Losses": losses,
+            "Draws": draws,
+            "Rating": rating
+        })
+
+    ratings_df = pd.DataFrame(rating_rows)
+    st.dataframe(ratings_df, use_container_width=True, hide_index=True)
+else:
+    st.info("Log some matches to see your ratings.")
