@@ -54,3 +54,30 @@ elif tennis_selected:
 
 st.write("")
 st.info(f"**Selected sport:** {st.session_state.sport}")
+
+import pandas as pd
+
+st.write("---")
+st.subheader(f"Log a {st.session_state.sport} match")
+
+if "matches" not in st.session_state:
+    st.session_state.matches = []
+
+with st.form("match_form"):
+    opponent = st.text_input("Opponent name")
+    your_score = st.number_input("Your score", min_value=0, step=1)
+    opponent_score = st.number_input("Opponent's score", min_value=0, step=1)
+    match_date = st.date_input("Date")
+    submitted = st.form_submit_button("Log Match")
+
+    if submitted:
+        result = "Win" if your_score > opponent_score else "Loss" if your_score < opponent_score else "Draw"
+        st.session_state.matches.append({
+            "Sport": st.session_state.sport,
+            "Date": match_date,
+            "Opponent": opponent,
+            "Your Score": your_score,
+            "Opponent Score": opponent_score,
+            "Result": result
+        })
+        st.success(f"Match logged! Result: {result}")
