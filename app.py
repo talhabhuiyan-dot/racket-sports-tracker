@@ -81,3 +81,12 @@ with st.form("match_form"):
             "Result": result
         })
         st.success(f"Match logged! Result: {result}")
+
+st.write("---")
+st.subheader("Match History")
+
+if st.session_state.matches:
+    df = pd.DataFrame(st.session_state.matches)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+else:
+    st.info("No matches logged yet. Log your first match above!")
