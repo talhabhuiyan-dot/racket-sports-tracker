@@ -205,3 +205,41 @@ if not history_df.empty:
     st.dataframe(ratings_df, use_container_width=True, hide_index=True)
 else:
     st.info("Log some matches to see your ratings.")
+
+st.write("---")
+st.subheader("Rating Progress Over Time")
+
+if not history_df.empty:
+    import plotly.express as px
+
+    _, starting_rating = load_profile()
+
+    progress_df = history_df.sort_values("date").copy()
+    progress_df["rating_change"] = progress_df["result"].map({"Win": 25, "Loss": -20, "Draw": 0})
+
+    progress_rows = []
+    for sport_name in progress_df["sport"].unique():
+        sport_matches = progress_df[progress_df["sport"] == sport_name].sort_values("date")
+        running_rating = starting_rating
+        for _, row in sport_matches.iterrows():
+            running_rating += row["rating_change"]
+            progress_rows.append({
+                "Sport": sport_name,
+                "Date": row["date"],
+                "Rating": running_rating
+            })
+
+    progress_chart_df = pd.DataFrame(progress_rows)
+
+    fig = px.line(
+        progress_chart_df,
+        x="Date",
+        y="Rating",
+        color="Sport",
+        markers=True
+    )
+    fig.update_layout(yaxis_title="Rating", xaxis_title="Date")
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("Log some matches to see your rating progress.")
+    
