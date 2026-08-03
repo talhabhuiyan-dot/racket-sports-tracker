@@ -1,7 +1,11 @@
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="Racket Sports Tracker", page_icon="🏓", layout="wide")
 
+# ---------------------------------------------------------------------------
+# Styling
+# ---------------------------------------------------------------------------
 st.markdown("""
     <style>
     .main-title {
@@ -17,24 +21,46 @@ st.markdown("""
         font-size: 1.1rem;
         margin-bottom: 2rem;
     }
-    .sport-card {
-        padding: 1.5rem;
-        border-radius: 12px;
-        text-align: center;
-        font-size: 1.3rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: transform 0.15s;
-    }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<p class="main-title">🏓 Racket Sports Tracker</p>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Log your matches across table tennis, badminton, and tennis — and track your progress over time.</p>', unsafe_allow_html=True)
 
-st.write("")
-col1, col2, col3 = st.columns(3)
+# ---------------------------------------------------------------------------
+# Player profile
+# ---------------------------------------------------------------------------
+st.write("---")
+st.subheader("Your Profile")
 
+if "player_name" not in st.session_state:
+    st.session_state.player_name = ""
+if "starting_rating" not in st.session_state:
+    st.session_state.starting_rating = 1000
+
+with st.form("profile_form"):
+    name_input = st.text_input("Your name", value=st.session_state.player_name)
+    starting_rating_input = st.slider(
+        "Self-assessed starting skill level (1000 = beginner, 1500 = intermediate, 2000+ = advanced)",
+        min_value=800, max_value=2500, value=st.session_state.starting_rating, step=25
+    )
+    profile_submitted = st.form_submit_button("Save Profile")
+
+    if profile_submitted:
+        st.session_state.player_name = name_input
+        st.session_state.starting_rating = starting_rating_input
+        st.success(f"Profile saved for {name_input}!")
+
+if st.session_state.player_name:
+    st.info(f"Currently tracking matches for: **{st.session_state.player_name}**")
+
+# ---------------------------------------------------------------------------
+# Sport selection
+# ---------------------------------------------------------------------------
+st.write("---")
+st.subheader("Select a Sport")
+
+col1, col2, col3 = st.columns(3)
 with col1:
     tt_selected = st.button("🏓 Table Tennis", use_container_width=True)
 with col2:
@@ -55,8 +81,9 @@ elif tennis_selected:
 st.write("")
 st.info(f"**Selected sport:** {st.session_state.sport}")
 
-import pandas as pd
-
+# ---------------------------------------------------------------------------
+# Match logging form
+# ---------------------------------------------------------------------------
 st.write("---")
 st.subheader(f"Log a {st.session_state.sport} match")
 
@@ -82,15 +109,21 @@ with st.form("match_form"):
         })
         st.success(f"Match logged! Result: {result}")
 
+# ---------------------------------------------------------------------------
+# Match history
+# ---------------------------------------------------------------------------
 st.write("---")
 st.subheader("Match History")
 
 if st.session_state.matches:
-    df = pd.DataFrame(st.session_state.matches)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    history_df = pd.DataFrame(st.session_state.matches)
+    st.dataframe(history_df, use_container_width=True, hide_index=True)
 else:
     st.info("No matches logged yet. Log your first match above!")
 
+# ---------------------------------------------------------------------------
+# Ratings
+# ---------------------------------------------------------------------------
 st.write("---")
 st.subheader("Your Ratings")
 
@@ -104,7 +137,7 @@ if st.session_state.matches:
         losses = (sport_matches["Result"] == "Loss").sum()
         draws = (sport_matches["Result"] == "Draw").sum()
         total = len(sport_matches)
-        rating = 1000 + (wins * 25) - (losses * 20)
+        rating = st.session_state.starting_rating + (wins * 25) - (losses * 20)
 
         rating_rows.append({
             "Sport": sport_name,
@@ -119,3 +152,4 @@ if st.session_state.matches:
     st.dataframe(ratings_df, use_container_width=True, hide_index=True)
 else:
     st.info("Log some matches to see your ratings.")
+    
