@@ -1,7 +1,71 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
 
 st.set_page_config(page_title="Racket Sports Tracker", page_icon="🏓", layout="wide")
+
+# ---------------------------------------------------------------------------
+# Database helpers
+# ---------------------------------------------------------------------------
+def init_db():
+    conn = sqlite3.connect("racket_tracker.db")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sport TEXT,
+            date TEXT,
+            opponent TEXT,
+            your_score INTEGER,
+            opponent_score INTEGER,
+            result TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS profile (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            player_name TEXT,
+            starting_rating INTEGER
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_match(sport, date, opponent, your_score, opponent_score, result):
+    conn = sqlite3.connect("racket_tracker.db")
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO matches (sport, date, opponent, your_score, opponent_score, result) VALUES (?, ?, ?, ?, ?, ?)",
+        (sport, str(date), opponent, your_score, opponent_score, result)
+    )
+    conn.commit()
+    conn.close()
+
+def load_matches():
+    conn = sqlite3.connect("racket_tracker.db")
+    df = pd.read_sql_query("SELECT * FROM matches", conn)
+    conn.close()
+    return df
+
+def save_profile(name, starting_rating):
+    conn = sqlite3.connect("racket_tracker.db")
+    c = conn.cursor()
+    c.execute(
+        "INSERT OR REPLACE INTO profile (id, player_name, starting_rating) VALUES (1, ?, ?)",
+        (name, starting_rating)
+    )
+    conn.commit()
+    conn.close()
+
+def load_profile():
+    conn = sqlite3.connect("racket_tracker.db")
+    c = conn.cursor()
+    c.execute("SELECT player_name, starting_rating FROM profile WHERE id = 1")
+    row = c.fetchone()
+    conn.close()
+    return row if row else ("", 1000)
+
+init_db()
 
 # ---------------------------------------------------------------------------
 # Styling
@@ -33,26 +97,23 @@ st.markdown('<p class="subtitle">Log your matches across table tennis, badminton
 st.write("---")
 st.subheader("Your Profile")
 
-if "player_name" not in st.session_state:
-    st.session_state.player_name = ""
-if "starting_rating" not in st.session_state:
-    st.session_state.starting_rating = 1000
+saved_name, saved_rating = load_profile()
 
 with st.form("profile_form"):
-    name_input = st.text_input("Your name", value=st.session_state.player_name)
+    name_input = st.text_input("Your name", value=saved_name)
     starting_rating_input = st.slider(
         "Self-assessed starting skill level (1000 = beginner, 1500 = intermediate, 2000+ = advanced)",
-        min_value=800, max_value=2500, value=st.session_state.starting_rating, step=25
+        min_value=800, max_value=2500, value=saved_rating, step=25
     )
     profile_submitted = st.form_submit_button("Save Profile")
 
     if profile_submitted:
-        st.session_state.player_name = name_input
-        st.session_state.starting_rating = starting_rating_input
+        save_profile(name_input, starting_rating_input)
         st.success(f"Profile saved for {name_input}!")
+        st.rerun()
 
-if st.session_state.player_name:
-    st.info(f"Currently tracking matches for: **{st.session_state.player_name}**")
+if saved_name:
+    st.info(f"Currently tracking matches for: **{saved_name}**")
 
 # ---------------------------------------------------------------------------
 # Sport selection
@@ -87,9 +148,6 @@ st.info(f"**Selected sport:** {st.session_state.sport}")
 st.write("---")
 st.subheader(f"Log a {st.session_state.sport} match")
 
-if "matches" not in st.session_state:
-    st.session_state.matches = []
-
 with st.form("match_form"):
     opponent = st.text_input("Opponent name")
     your_score = st.number_input("Your score", min_value=0, step=1)
@@ -99,15 +157,9 @@ with st.form("match_form"):
 
     if submitted:
         result = "Win" if your_score > opponent_score else "Loss" if your_score < opponent_score else "Draw"
-        st.session_state.matches.append({
-            "Sport": st.session_state.sport,
-            "Date": match_date,
-            "Opponent": opponent,
-            "Your Score": your_score,
-            "Opponent Score": opponent_score,
-            "Result": result
-        })
+        save_match(st.session_state.sport, match_date, opponent, your_score, opponent_score, result)
         st.success(f"Match logged! Result: {result}")
+        st.rerun()
 
 # ---------------------------------------------------------------------------
 # Match history
@@ -115,8 +167,9 @@ with st.form("match_form"):
 st.write("---")
 st.subheader("Match History")
 
-if st.session_state.matches:
-    history_df = pd.DataFrame(st.session_state.matches)
+history_df = load_matches()
+
+if not history_df.empty:
     st.dataframe(history_df, use_container_width=True, hide_index=True)
 else:
     st.info("No matches logged yet. Log your first match above!")
@@ -127,17 +180,17 @@ else:
 st.write("---")
 st.subheader("Your Ratings")
 
-if st.session_state.matches:
-    df = pd.DataFrame(st.session_state.matches)
+if not history_df.empty:
+    _, starting_rating = load_profile()
 
     rating_rows = []
-    for sport_name in df["Sport"].unique():
-        sport_matches = df[df["Sport"] == sport_name]
-        wins = (sport_matches["Result"] == "Win").sum()
-        losses = (sport_matches["Result"] == "Loss").sum()
-        draws = (sport_matches["Result"] == "Draw").sum()
+    for sport_name in history_df["sport"].unique():
+        sport_matches = history_df[history_df["sport"] == sport_name]
+        wins = (sport_matches["result"] == "Win").sum()
+        losses = (sport_matches["result"] == "Loss").sum()
+        draws = (sport_matches["result"] == "Draw").sum()
         total = len(sport_matches)
-        rating = st.session_state.starting_rating + (wins * 25) - (losses * 20)
+        rating = starting_rating + (wins * 25) - (losses * 20)
 
         rating_rows.append({
             "Sport": sport_name,
@@ -152,4 +205,3 @@ if st.session_state.matches:
     st.dataframe(ratings_df, use_container_width=True, hide_index=True)
 else:
     st.info("Log some matches to see your ratings.")
-    
